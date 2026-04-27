@@ -223,13 +223,30 @@ public class MainActivity extends Activity {
     }
 
     private void checkPermissionAndLoad() {
-        if (checkSelfPermission(Manifest.permission.READ_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED) {
-            loadTracks();
-        } else {
-            showStatus(getString(R.string.permission_denied), true);
-            requestPermissions(new String[]{Manifest.permission.READ_EXTERNAL_STORAGE}, REQ_PERM);
-        }
+    if (hasStoragePermission()) {
+        loadTracks();
+    } else {
+        showStatus("Storage permission is needed\nto find audio files on your device.", true);
     }
+}
+
+private boolean hasStoragePermission() {
+    if (Build.VERSION.SDK_INT >= 33) {
+        return checkSelfPermission(Manifest.permission.READ_MEDIA_AUDIO)
+                == PackageManager.PERMISSION_GRANTED;
+    } else {
+        return checkSelfPermission(Manifest.permission.READ_EXTERNAL_STORAGE)
+                == PackageManager.PERMISSION_GRANTED;
+    }
+}
+
+private void requestStoragePermission() {
+    if (Build.VERSION.SDK_INT >= 33) {
+        requestPermissions(new String[]{Manifest.permission.READ_MEDIA_AUDIO}, REQ_PERM);
+    } else {
+        requestPermissions(new String[]{Manifest.permission.READ_EXTERNAL_STORAGE}, REQ_PERM);
+    }
+}
 
     @Override
     public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
