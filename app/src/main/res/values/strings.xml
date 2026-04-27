@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">LongAudio Player</string>
+    <string name="no_files">No audio files found (30+ min)</string>
+    <string name="loading">Scanning audio files…</string>
+    <string name="permission_denied">Storage permission required</string>
+    <string name="grant">Grant Permission</string>
+    <string name="unknown_artist">Unknown Artist</string>
+    <string name="unknown_album">Unknown Album</string>
+</resources>
