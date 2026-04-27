@@ -1,19 +1,23 @@
 package com.majid.audioplayer;
 
 import android.Manifest;
+import android.app.Activity;
+import android.app.AlertDialog;
 import android.content.ComponentName;
 import android.content.ContentResolver;
 import android.content.Context;
+import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.ServiceConnection;
 import android.content.pm.PackageManager;
 import android.database.Cursor;
 import android.net.Uri;
+import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.IBinder;
 import android.provider.MediaStore;
-import android.app.Activity;
+import android.provider.Settings;
 import android.view.View;
 import android.widget.AdapterView;
 import android.widget.Button;
@@ -22,16 +26,13 @@ import android.widget.ListView;
 import android.widget.SeekBar;
 import android.widget.TextView;
 import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Comparator;
 import java.util.List;
 
 public class MainActivity extends Activity {
 
     private static final int REQ_PERM = 1001;
-    private static final long MIN_DURATION_MS = 30L * 60L * 1000L; // 30 minutes
+    private static final long MIN_DURATION_MS = 30L * 60L * 1000L;
 
-    // UI
     private ListView lvTracks;
     private LinearLayout layoutStatus;
     private TextView tvStatus, tvCount;
@@ -41,11 +42,9 @@ public class MainActivity extends Activity {
     private TextView tvCurrent, tvDuration, tvNowPlaying, tvNowArtist;
     private Button btnPlayPause, btnPrev, btnNext, btnRewind, btnForward;
 
-    // Data
     private List<AudioTrack> tracks = new ArrayList<>();
     private TrackAdapter adapter;
 
-    // Service
     private PlayerService playerService;
     private boolean serviceBound = false;
     private final Handler handler = new Handler();
@@ -59,7 +58,6 @@ public class MainActivity extends Activity {
             serviceBound = true;
             playerService.setCallback(playerCallback);
         }
-
         @Override
         public void onServiceDisconnected(ComponentName name) {
             serviceBound = false;
@@ -68,10 +66,9 @@ public class MainActivity extends Activity {
 
     private final PlayerService.PlayerCallback playerCallback = new PlayerService.PlayerCallback() {
         @Override
-        public void onPlaybackStarted(int position) {
+        public void onPlaybackStarted(final int position) {
             runOnUiThread(new Runnable() {
-                @Override
-                public void run() {
+                @Override public void run() {
                     updatePlayerBarForPosition(position);
                     btnPlayPause.setText("⏸");
                     startSeekUpdater();
@@ -79,23 +76,19 @@ public class MainActivity extends Activity {
                 }
             });
         }
-
         @Override
         public void onPlaybackPaused() {
             runOnUiThread(new Runnable() {
-                @Override
-                public void run() {
+                @Override public void run() {
                     btnPlayPause.setText("▶");
                     stopSeekUpdater();
                 }
             });
         }
-
         @Override
         public void onPlaybackCompleted() {
             runOnUiThread(new Runnable() {
-                @Override
-                public void run() {
+                @Override public void run() {
                     int next = playerService.getPlayingIndex() + 1;
                     if (next < tracks.size()) {
                         playTrack(next);
@@ -106,13 +99,10 @@ public class MainActivity extends Activity {
                 }
             });
         }
-
         @Override
-        public void onError(String message) {
-            // silently skip to next on error
+        public void onError(final String message) {
             runOnUiThread(new Runnable() {
-                @Override
-                public void run() {
+                @Override public void run() {
                     int next = playerService.getPlayingIndex() + 1;
                     if (next < tracks.size()) playTrack(next);
                 }
@@ -124,52 +114,53 @@ public class MainActivity extends Activity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
-
         bindViews();
         setupControls();
         startService(new Intent(this, PlayerService.class));
         bindService(new Intent(this, PlayerService.class), serviceConnection, Context.BIND_AUTO_CREATE);
-
         checkPermissionAndLoad();
     }
 
     private void bindViews() {
-        lvTracks = (ListView) findViewById(R.id.lv_tracks);
+        lvTracks     = (ListView)     findViewById(R.id.lv_tracks);
         layoutStatus = (LinearLayout) findViewById(R.id.layout_status);
-        tvStatus = (TextView) findViewById(R.id.tv_status);
-        tvCount = (TextView) findViewById(R.id.tv_count);
-        btnGrant = (Button) findViewById(R.id.btn_grant);
-        playerBar = (LinearLayout) findViewById(R.id.player_bar);
-        seekBar = (SeekBar) findViewById(R.id.seek_bar);
-        tvCurrent = (TextView) findViewById(R.id.tv_current);
-        tvDuration = (TextView) findViewById(R.id.tv_duration);
-        tvNowPlaying = (TextView) findViewById(R.id.tv_now_playing);
-        tvNowArtist = (TextView) findViewById(R.id.tv_now_artist);
-        btnPlayPause = (Button) findViewById(R.id.btn_play_pause);
-        btnPrev = (Button) findViewById(R.id.btn_prev);
-        btnNext = (Button) findViewById(R.id.btn_next);
-        btnRewind = (Button) findViewById(R.id.btn_rewind);
-        btnForward = (Button) findViewById(R.id.btn_forward);
+        tvStatus     = (TextView)     findViewById(R.id.tv_status);
+        tvCount      = (TextView)     findViewById(R.id.tv_count);
+        btnGrant     = (Button)       findViewById(R.id.btn_grant);
+        playerBar    = (LinearLayout) findViewById(R.id.player_bar);
+        seekBar      = (SeekBar)      findViewById(R.id.seek_bar);
+        tvCurrent    = (TextView)     findViewById(R.id.tv_current);
+        tvDuration   = (TextView)     findViewById(R.id.tv_duration);
+        tvNowPlaying = (TextView)     findViewById(R.id.tv_now_playing);
+        tvNowArtist  = (TextView)     findViewById(R.id.tv_now_artist);
+        btnPlayPause = (Button)       findViewById(R.id.btn_play_pause);
+        btnPrev      = (Button)       findViewById(R.id.btn_prev);
+        btnNext      = (Button)       findViewById(R.id.btn_next);
+        btnRewind    = (Button)       findViewById(R.id.btn_rewind);
+        btnForward   = (Button)       findViewById(R.id.btn_forward);
     }
 
     private void setupControls() {
+        btnGrant.setOnClickListener(new View.OnClickListener() {
+            @Override public void onClick(View v) {
+                requestStoragePermission();
+            }
+        });
+
         lvTracks.setOnItemClickListener(new AdapterView.OnItemClickListener() {
-            @Override
-            public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
+            @Override public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
                 playTrack(position);
             }
         });
 
         btnPlayPause.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
+            @Override public void onClick(View v) {
                 if (serviceBound) playerService.togglePause();
             }
         });
 
         btnPrev.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
+            @Override public void onClick(View v) {
                 if (serviceBound) {
                     int prev = playerService.getPlayingIndex() - 1;
                     if (prev >= 0) playTrack(prev);
@@ -178,8 +169,7 @@ public class MainActivity extends Activity {
         });
 
         btnNext.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
+            @Override public void onClick(View v) {
                 if (serviceBound) {
                     int next = playerService.getPlayingIndex() + 1;
                     if (next < tracks.size()) playTrack(next);
@@ -188,15 +178,13 @@ public class MainActivity extends Activity {
         });
 
         btnRewind.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
+            @Override public void onClick(View v) {
                 if (serviceBound) playerService.skip(-30000);
             }
         });
 
         btnForward.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
+            @Override public void onClick(View v) {
                 if (serviceBound) playerService.skip(30000);
             }
         });
@@ -213,48 +201,63 @@ public class MainActivity extends Activity {
             @Override public void onStartTrackingTouch(SeekBar sb) {}
             @Override public void onStopTrackingTouch(SeekBar sb) {}
         });
-
-        btnGrant.setOnClickListener(new View.OnClickListener() {
-    @Override
-    public void onClick(View v) {
-        requestStoragePermission();
-    }
-});
     }
 
     private void checkPermissionAndLoad() {
-    if (hasStoragePermission()) {
-        loadTracks();
-    } else {
-        showStatus("Storage permission is needed\nto find audio files on your device.", true);
+        if (hasStoragePermission()) {
+            loadTracks();
+        } else {
+            showStatus("Storage permission is needed\nto find audio files on your device.", true);
+        }
     }
-}
 
-private boolean hasStoragePermission() {
-    if (Build.VERSION.SDK_INT >= 33) {
-        return checkSelfPermission(Manifest.permission.READ_MEDIA_AUDIO)
-                == PackageManager.PERMISSION_GRANTED;
-    } else {
-        return checkSelfPermission(Manifest.permission.READ_EXTERNAL_STORAGE)
-                == PackageManager.PERMISSION_GRANTED;
+    private boolean hasStoragePermission() {
+        if (Build.VERSION.SDK_INT >= 33) {
+            return checkSelfPermission("android.permission.READ_MEDIA_AUDIO")
+                    == PackageManager.PERMISSION_GRANTED;
+        } else {
+            return checkSelfPermission("android.permission.READ_EXTERNAL_STORAGE")
+                    == PackageManager.PERMISSION_GRANTED;
+        }
     }
-}
 
-private void requestStoragePermission() {
-    if (Build.VERSION.SDK_INT >= 33) {
-        requestPermissions(new String[]{Manifest.permission.READ_MEDIA_AUDIO}, REQ_PERM);
-    } else {
-        requestPermissions(new String[]{Manifest.permission.READ_EXTERNAL_STORAGE}, REQ_PERM);
+    private void requestStoragePermission() {
+        if (Build.VERSION.SDK_INT >= 33) {
+            requestPermissions(new String[]{"android.permission.READ_MEDIA_AUDIO"}, REQ_PERM);
+        } else {
+            requestPermissions(new String[]{"android.permission.READ_EXTERNAL_STORAGE"}, REQ_PERM);
+        }
     }
-}
 
     @Override
     public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
         if (requestCode == REQ_PERM) {
             if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
                 loadTracks();
             } else {
-                showStatus(getString(R.string.permission_denied), true);
+                boolean canAskAgain;
+                if (Build.VERSION.SDK_INT >= 33) {
+                    canAskAgain = shouldShowRequestPermissionRationale("android.permission.READ_MEDIA_AUDIO");
+                } else {
+                    canAskAgain = shouldShowRequestPermissionRationale("android.permission.READ_EXTERNAL_STORAGE");
+                }
+                if (!canAskAgain) {
+                    new AlertDialog.Builder(MainActivity.this)
+                        .setTitle("Permission Required")
+                        .setMessage("Please go to Settings → Apps → LongAudio Player → Permissions → Storage and allow access.")
+                        .setPositiveButton("Open Settings", new DialogInterface.OnClickListener() {
+                            @Override public void onClick(DialogInterface d, int w) {
+                                Intent intent = new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS);
+                                intent.setData(Uri.parse("package:" + getPackageName()));
+                                startActivity(intent);
+                            }
+                        })
+                        .setNegativeButton("Cancel", null)
+                        .show();
+                } else {
+                    showStatus("Permission denied.\nTap Grant Permission to try again.", true);
+                }
             }
         }
     }
@@ -272,19 +275,16 @@ private void requestStoragePermission() {
     }
 
     private void loadTracks() {
-        showStatus(getString(R.string.loading), false);
-
+        showStatus("Scanning audio files…", false);
         new Thread(new Runnable() {
-            @Override
-            public void run() {
+            @Override public void run() {
                 final List<AudioTrack> found = scanAudio();
                 runOnUiThread(new Runnable() {
-                    @Override
-                    public void run() {
+                    @Override public void run() {
                         tracks.clear();
                         tracks.addAll(found);
                         if (tracks.isEmpty()) {
-                            showStatus(getString(R.string.no_files), false);
+                            showStatus("No audio files found.\nOnly files longer than 30 minutes are shown.", false);
                         } else {
                             hideStatus();
                             adapter = new TrackAdapter(MainActivity.this, tracks);
@@ -310,37 +310,37 @@ private void requestStoragePermission() {
             MediaStore.Audio.Media.DATA,
             MediaStore.Audio.Media.SIZE
         };
-        // Only files with duration >= 30 minutes
-        String selection = MediaStore.Audio.Media.DURATION + " >= " + MIN_DURATION_MS
-            + " AND " + MediaStore.Audio.Media.IS_MUSIC + " = 0 OR "
-            + MediaStore.Audio.Media.DURATION + " >= " + MIN_DURATION_MS;
-        String sortOrder = MediaStore.Audio.Media.TITLE + " ASC";
-
         Cursor cursor = null;
         try {
-            cursor = cr.query(uri, projection, MediaStore.Audio.Media.DURATION + " >= ?",
-                new String[]{String.valueOf(MIN_DURATION_MS)}, sortOrder);
+            cursor = cr.query(
+                uri, projection,
+                MediaStore.Audio.Media.DURATION + " >= ?",
+                new String[]{String.valueOf(MIN_DURATION_MS)},
+                MediaStore.Audio.Media.TITLE + " ASC"
+            );
             if (cursor != null && cursor.moveToFirst()) {
-                int idCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media._ID);
-                int titleCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.TITLE);
+                int idCol     = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media._ID);
+                int titleCol  = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.TITLE);
                 int artistCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ARTIST);
-                int albumCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ALBUM);
-                int durCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DURATION);
-                int pathCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DATA);
-                int sizeCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.SIZE);
-
+                int albumCol  = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ALBUM);
+                int durCol    = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DURATION);
+                int pathCol   = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DATA);
+                int sizeCol   = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.SIZE);
                 do {
-                    long id = cursor.getLong(idCol);
-                    String title = cursor.getString(titleCol);
-                    String artist = cursor.getString(artistCol);
-                    String album = cursor.getString(albumCol);
-                    long duration = cursor.getLong(durCol);
-                    String path = cursor.getString(pathCol);
-                    long size = cursor.getLong(sizeCol);
+                    long   id       = cursor.getLong(idCol);
+                    String title    = cursor.getString(titleCol);
+                    String artist   = cursor.getString(artistCol);
+                    String album    = cursor.getString(albumCol);
+                    long   duration = cursor.getLong(durCol);
+                    String path     = cursor.getString(pathCol);
+                    long   size     = cursor.getLong(sizeCol);
 
-                    if (title == null || title.isEmpty()) title = path != null ? path.substring(path.lastIndexOf('/') + 1) : "Unknown";
-                    if (artist == null || artist.isEmpty() || artist.equals("<unknown>")) artist = getString(R.string.unknown_artist);
-                    if (album == null || album.isEmpty()) album = getString(R.string.unknown_album);
+                    if (title == null || title.isEmpty())
+                        title = path != null ? path.substring(path.lastIndexOf('/') + 1) : "Unknown";
+                    if (artist == null || artist.isEmpty() || artist.equals("<unknown>"))
+                        artist = getString(R.string.unknown_artist);
+                    if (album == null || album.isEmpty())
+                        album = getString(R.string.unknown_album);
 
                     result.add(new AudioTrack(id, title, artist, album, duration, path, size));
                 } while (cursor.moveToNext());
@@ -371,8 +371,7 @@ private void requestStoragePermission() {
     private void startSeekUpdater() {
         stopSeekUpdater();
         seekUpdater = new Runnable() {
-            @Override
-            public void run() {
+            @Override public void run() {
                 if (serviceBound && playerService.isPlaying()) {
                     int cur = playerService.getCurrentPosition();
                     int dur = playerService.getDuration();
