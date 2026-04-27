@@ -215,11 +215,11 @@ public class MainActivity extends Activity {
         });
 
         btnGrant.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                requestPermissions(new String[]{Manifest.permission.READ_EXTERNAL_STORAGE}, REQ_PERM);
-            }
-        });
+    @Override
+    public void onClick(View v) {
+        requestStoragePermission();
+    }
+});
     }
 
     private void checkPermissionAndLoad() {
